@@ -1,0 +1,1638 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="initial-scale=1,user-scalable=no,maximum-scale=1,width=device-width">
+        <meta name="mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <link rel="stylesheet" href="css/leaflet.css">
+        <link rel="stylesheet" href="css/L.Control.Layers.Tree.css">
+        <link rel="stylesheet" href="css/qgis2web.css">
+        <link rel="stylesheet" href="css/fontawesome-all.min.css">
+        <link rel="stylesheet" href="css/leaflet.photon.css">
+        <style>
+        html, body, #map {
+            width: 100%;
+            height: 100%;
+            padding: 0;
+            margin: 0;
+        }
+        </style>
+        <title></title>
+    </head>
+    <body>
+        <div id="map">
+        </div>
+        <script src="js/qgis2web_expressions.js"></script>
+        <script src="js/leaflet.js"></script>
+        <script src="js/L.Control.Layers.Tree.min.js"></script>
+        <script src="js/leaflet.rotatedMarker.js"></script>
+        <script src="js/leaflet.pattern.js"></script>
+        <script src="js/leaflet-hash.js"></script>
+        <script src="js/Autolinker.min.js"></script>
+        <script src="js/rbush.min.js"></script>
+        <script src="js/labelgun.min.js"></script>
+        <script src="js/labels.js"></script>
+        <script src="js/leaflet.photon.js"></script>
+        <script src="data/Farm_Total_Area_1.js"></script>
+        <script src="data/Field_Block_Polygon_2.js"></script>
+        <script src="data/Feed_Storage_Point_3.js"></script>
+        <script src="data/Grazing_Area_4.js"></script>
+        <script src="data/Main_Road_5.js"></script>
+        <script src="data/Farm_Road_6.js"></script>
+        <script src="data/Building_7.js"></script>
+        <script src="data/Fence_Line_8.js"></script>
+        <script src="data/Field_Block_9.js"></script>
+        <script src="data/Farm_Boundary_10.js"></script>
+        <script src="data/Water_Tank_11.js"></script>
+        <script src="data/Poultry_Shed_12.js"></script>
+        <script src="data/Cattle_Shed_13.js"></script>
+        <script src="data/Animal_Point_14.js"></script>
+        <script src="data/Crop_Zone_15.js"></script>
+        <script src="data/Irrigation_Point_16.js"></script>
+        <script src="data/Soil_Sample_Point_17.js"></script>
+        <script src="data/Fish_Pond_18.js"></script>
+        <script src="data/Water_Sample_Point_19.js"></script>
+        <script src="data/Waste_Disposal_Point_20.js"></script>
+        <script src="data/Biogas_Plant_21.js"></script>
+        <script src="data/Veterinary_Point_22.js"></script>
+        <script>
+        var map = L.map('map', {
+            zoomControl:false, maxZoom:28, minZoom:1
+        }).fitBounds([[24.964304136319672,88.49138183401077],[24.966724680633757,88.49516136441225]]);
+        var hash = new L.Hash(map);
+        map.attributionControl.setPrefix('<a href="https://github.com/tomchadwin/qgis2web" target="_blank">qgis2web</a> &middot; <a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> &middot; <a href="https://qgis.org">QGIS</a>');
+        var autolinker = new Autolinker({truncate: {length: 30, location: 'smart'}});
+        // remove popup's row if "visible-with-data"
+        function removeEmptyRowsFromPopupContent(content, feature) {
+         var tempDiv = document.createElement('div');
+         tempDiv.innerHTML = content;
+         var rows = tempDiv.querySelectorAll('tr');
+         for (var i = 0; i < rows.length; i++) {
+             var td = rows[i].querySelector('td.visible-with-data');
+             var key = td ? td.id : '';
+             if (td && td.classList.contains('visible-with-data') && feature.properties[key] == null) {
+                 rows[i].parentNode.removeChild(rows[i]);
+             }
+         }
+         return tempDiv.innerHTML;
+        }
+        // modify popup if contains media
+        function addClassToPopupIfMedia(content, popup) {
+            var tempDiv = document.createElement('div');
+            tempDiv.innerHTML = content;
+            var imgTd = tempDiv.querySelector('td img');
+            if (imgTd) {
+                var src = imgTd.getAttribute('src');
+                if (/\.(jpg|jpeg|png|gif|bmp|webp|avif)$/i.test(src)) {
+                    popup._contentNode.classList.add('media');
+                    setTimeout(function() {
+                        popup.update();
+                    }, 10);
+                } else if (/\.(mp3|wav|ogg|aac)$/i.test(src)) {
+                    var audio = document.createElement('audio');
+                    audio.controls = true;
+                    audio.src = src;
+                    imgTd.parentNode.replaceChild(audio, imgTd);
+                    popup._contentNode.classList.add('media');
+                    setTimeout(function() {
+                        popup.setContent(tempDiv.innerHTML);
+                        popup.update();
+                    }, 10);
+                } else if (/\.(mp4|webm|ogg|mov)$/i.test(src)) {
+                    var video = document.createElement('video');
+                    video.controls = true;
+                    video.src = src;
+                    video.style.width = "400px";
+                    video.style.height = "300px";
+                    video.style.maxHeight = "60vh";
+                    video.style.maxWidth = "60vw";
+                    imgTd.parentNode.replaceChild(video, imgTd);
+                    popup._contentNode.classList.add('media');
+                    // Aggiorna il popup quando il video carica i metadati
+                    video.addEventListener('loadedmetadata', function() {
+                        popup.update();
+                    });
+                    setTimeout(function() {
+                        popup.setContent(tempDiv.innerHTML);
+                        popup.update();
+                    }, 10);
+                } else {
+                    popup._contentNode.classList.remove('media');
+                }
+            } else {
+                popup._contentNode.classList.remove('media');
+            }
+        }
+        var zoomControl = L.control.zoom({
+            position: 'topleft'
+        }).addTo(map);
+        var bounds_group = new L.featureGroup([]);
+        function setBounds() {
+        }
+        map.createPane('pane_GoogleSatellite_0');
+        map.getPane('pane_GoogleSatellite_0').style.zIndex = 400;
+        var layer_GoogleSatellite_0 = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+            pane: 'pane_GoogleSatellite_0',
+            opacity: 1.0,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+        });
+        layer_GoogleSatellite_0;
+        map.addLayer(layer_GoogleSatellite_0);
+        function pop_Farm_Total_Area_1(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2"><strong>OBJECTID</strong><br />' + (feature.properties['OBJECTID'] !== null ? autolinker.link(String(feature.properties['OBJECTID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Area</strong><br />' + (feature.properties['Area'] !== null ? autolinker.link(String(feature.properties['Area']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>SHAPE_Length</strong><br />' + (feature.properties['SHAPE_Length'] !== null ? autolinker.link(String(feature.properties['SHAPE_Length']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>SHAPE_Area</strong><br />' + (feature.properties['SHAPE_Area'] !== null ? autolinker.link(String(feature.properties['SHAPE_Area']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_Farm_Total_Area_1_0() {
+            return {
+                pane: 'pane_Farm_Total_Area_1',
+                opacity: 1,
+                color: 'rgba(35,35,35,0.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(133,182,111,0.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_Farm_Total_Area_1');
+        map.getPane('pane_Farm_Total_Area_1').style.zIndex = 401;
+        map.getPane('pane_Farm_Total_Area_1').style['mix-blend-mode'] = 'normal';
+        var layer_Farm_Total_Area_1 = new L.geoJson(json_Farm_Total_Area_1, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_Farm_Total_Area_1',
+            layerName: 'layer_Farm_Total_Area_1',
+            pane: 'pane_Farm_Total_Area_1',
+            onEachFeature: pop_Farm_Total_Area_1,
+            style: style_Farm_Total_Area_1_0,
+        });
+        bounds_group.addLayer(layer_Farm_Total_Area_1);
+        map.addLayer(layer_Farm_Total_Area_1);
+        function pop_Field_Block_Polygon_2(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2"><strong>OBJECTID</strong><br />' + (feature.properties['OBJECTID'] !== null ? autolinker.link(String(feature.properties['OBJECTID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>SHAPE_Length</strong><br />' + (feature.properties['SHAPE_Length'] !== null ? autolinker.link(String(feature.properties['SHAPE_Length']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>SHAPE_Area</strong><br />' + (feature.properties['SHAPE_Area'] !== null ? autolinker.link(String(feature.properties['SHAPE_Area']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Area</strong><br />' + (feature.properties['Area'] !== null ? autolinker.link(String(feature.properties['Area']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_Field_Block_Polygon_2_0() {
+            return {
+                pane: 'pane_Field_Block_Polygon_2',
+                opacity: 1,
+                color: 'rgba(255,7,47,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 4.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(145,82,45,0.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_Field_Block_Polygon_2');
+        map.getPane('pane_Field_Block_Polygon_2').style.zIndex = 402;
+        map.getPane('pane_Field_Block_Polygon_2').style['mix-blend-mode'] = 'normal';
+        var layer_Field_Block_Polygon_2 = new L.geoJson(json_Field_Block_Polygon_2, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_Field_Block_Polygon_2',
+            layerName: 'layer_Field_Block_Polygon_2',
+            pane: 'pane_Field_Block_Polygon_2',
+            onEachFeature: pop_Field_Block_Polygon_2,
+            style: style_Field_Block_Polygon_2_0,
+        });
+        bounds_group.addLayer(layer_Field_Block_Polygon_2);
+        map.addLayer(layer_Field_Block_Polygon_2);
+        function pop_Feed_Storage_Point_3(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2"><strong>OBJECTID</strong><br />' + (feature.properties['OBJECTID'] !== null ? autolinker.link(String(feature.properties['OBJECTID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Shape_Length</strong><br />' + (feature.properties['Shape_Length'] !== null ? autolinker.link(String(feature.properties['Shape_Length']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Shape_Area</strong><br />' + (feature.properties['Shape_Area'] !== null ? autolinker.link(String(feature.properties['Shape_Area']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Storage_ID</strong><br />' + (feature.properties['Storage_ID'] !== null ? autolinker.link(String(feature.properties['Storage_ID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Capacity</strong><br />' + (feature.properties['Capacity'] !== null ? autolinker.link(String(feature.properties['Capacity']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Feed_Type</strong><br />' + (feature.properties['Feed_Type'] !== null ? autolinker.link(String(feature.properties['Feed_Type']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Stock_Level</strong><br />' + (feature.properties['Stock_Level'] !== null ? autolinker.link(String(feature.properties['Stock_Level']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Area</strong><br />' + (feature.properties['Area'] !== null ? autolinker.link(String(feature.properties['Area']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>z</strong><br />' + (feature.properties['z'] !== null ? autolinker.link(String(feature.properties['z']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_Feed_Storage_Point_3_0() {
+            return {
+                pane: 'pane_Feed_Storage_Point_3',
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(232,113,141,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_Feed_Storage_Point_3');
+        map.getPane('pane_Feed_Storage_Point_3').style.zIndex = 403;
+        map.getPane('pane_Feed_Storage_Point_3').style['mix-blend-mode'] = 'normal';
+        var layer_Feed_Storage_Point_3 = new L.geoJson(json_Feed_Storage_Point_3, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_Feed_Storage_Point_3',
+            layerName: 'layer_Feed_Storage_Point_3',
+            pane: 'pane_Feed_Storage_Point_3',
+            onEachFeature: pop_Feed_Storage_Point_3,
+            style: style_Feed_Storage_Point_3_0,
+        });
+        bounds_group.addLayer(layer_Feed_Storage_Point_3);
+        map.addLayer(layer_Feed_Storage_Point_3);
+        function pop_Grazing_Area_4(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2"><strong>OBJECTID</strong><br />' + (feature.properties['OBJECTID'] !== null ? autolinker.link(String(feature.properties['OBJECTID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Shape_Length</strong><br />' + (feature.properties['Shape_Length'] !== null ? autolinker.link(String(feature.properties['Shape_Length']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Shape_Area</strong><br />' + (feature.properties['Shape_Area'] !== null ? autolinker.link(String(feature.properties['Shape_Area']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Grazing_ID</strong><br />' + (feature.properties['Grazing_ID'] !== null ? autolinker.link(String(feature.properties['Grazing_ID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Area</strong><br />' + (feature.properties['Area'] !== null ? autolinker.link(String(feature.properties['Area']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Grass_Species</strong><br />' + (feature.properties['Grass_Species'] !== null ? autolinker.link(String(feature.properties['Grass_Species']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Water_Access</strong><br />' + (feature.properties['Water_Access'] !== null ? autolinker.link(String(feature.properties['Water_Access']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Fence_Type</strong><br />' + (feature.properties['Fence_Type'] !== null ? autolinker.link(String(feature.properties['Fence_Type']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>z</strong><br />' + (feature.properties['z'] !== null ? autolinker.link(String(feature.properties['z']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_Grazing_Area_4_0() {
+            return {
+                pane: 'pane_Grazing_Area_4',
+                opacity: 1,
+                color: 'rgba(255,243,8,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 3.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(133,182,111,0.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_Grazing_Area_4');
+        map.getPane('pane_Grazing_Area_4').style.zIndex = 404;
+        map.getPane('pane_Grazing_Area_4').style['mix-blend-mode'] = 'normal';
+        var layer_Grazing_Area_4 = new L.geoJson(json_Grazing_Area_4, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_Grazing_Area_4',
+            layerName: 'layer_Grazing_Area_4',
+            pane: 'pane_Grazing_Area_4',
+            onEachFeature: pop_Grazing_Area_4,
+            style: style_Grazing_Area_4_0,
+        });
+        bounds_group.addLayer(layer_Grazing_Area_4);
+        map.addLayer(layer_Grazing_Area_4);
+        function pop_Main_Road_5(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2"><strong>OBJECTID</strong><br />' + (feature.properties['OBJECTID'] !== null ? autolinker.link(String(feature.properties['OBJECTID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Shape_Length</strong><br />' + (feature.properties['Shape_Length'] !== null ? autolinker.link(String(feature.properties['Shape_Length']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Shape_Area</strong><br />' + (feature.properties['Shape_Area'] !== null ? autolinker.link(String(feature.properties['Shape_Area']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_Main_Road_5_0() {
+            return {
+                pane: 'pane_Main_Road_5',
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(0,0,0,0.3215686274509804)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_Main_Road_5');
+        map.getPane('pane_Main_Road_5').style.zIndex = 405;
+        map.getPane('pane_Main_Road_5').style['mix-blend-mode'] = 'normal';
+        var layer_Main_Road_5 = new L.geoJson(json_Main_Road_5, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_Main_Road_5',
+            layerName: 'layer_Main_Road_5',
+            pane: 'pane_Main_Road_5',
+            onEachFeature: pop_Main_Road_5,
+            style: style_Main_Road_5_0,
+        });
+        bounds_group.addLayer(layer_Main_Road_5);
+        map.addLayer(layer_Main_Road_5);
+        function pop_Farm_Road_6(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2"><strong>OBJECTID</strong><br />' + (feature.properties['OBJECTID'] !== null ? autolinker.link(String(feature.properties['OBJECTID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Shape_Length</strong><br />' + (feature.properties['Shape_Length'] !== null ? autolinker.link(String(feature.properties['Shape_Length']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Shape_Area</strong><br />' + (feature.properties['Shape_Area'] !== null ? autolinker.link(String(feature.properties['Shape_Area']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Road_ID</strong><br />' + (feature.properties['Road_ID'] !== null ? autolinker.link(String(feature.properties['Road_ID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Type</strong><br />' + (feature.properties['Type'] !== null ? autolinker.link(String(feature.properties['Type']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Width</strong><br />' + (feature.properties['Width'] !== null ? autolinker.link(String(feature.properties['Width']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Condition</strong><br />' + (feature.properties['Condition'] !== null ? autolinker.link(String(feature.properties['Condition']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_Farm_Road_6_0() {
+            return {
+                pane: 'pane_Farm_Road_6',
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(253,191,111,0.30980392156862746)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_Farm_Road_6');
+        map.getPane('pane_Farm_Road_6').style.zIndex = 406;
+        map.getPane('pane_Farm_Road_6').style['mix-blend-mode'] = 'normal';
+        var layer_Farm_Road_6 = new L.geoJson(json_Farm_Road_6, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_Farm_Road_6',
+            layerName: 'layer_Farm_Road_6',
+            pane: 'pane_Farm_Road_6',
+            onEachFeature: pop_Farm_Road_6,
+            style: style_Farm_Road_6_0,
+        });
+        bounds_group.addLayer(layer_Farm_Road_6);
+        map.addLayer(layer_Farm_Road_6);
+        function pop_Building_7(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2"><strong>OBJECTID</strong><br />' + (feature.properties['OBJECTID'] !== null ? autolinker.link(String(feature.properties['OBJECTID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Shape_Length</strong><br />' + (feature.properties['Shape_Length'] !== null ? autolinker.link(String(feature.properties['Shape_Length']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Shape_Area</strong><br />' + (feature.properties['Shape_Area'] !== null ? autolinker.link(String(feature.properties['Shape_Area']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Building_ID</strong><br />' + (feature.properties['Building_ID'] !== null ? autolinker.link(String(feature.properties['Building_ID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Field</strong><br />' + (feature.properties['Field'] !== null ? autolinker.link(String(feature.properties['Field']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Type</strong><br />' + (feature.properties['Type'] !== null ? autolinker.link(String(feature.properties['Type']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Condition</strong><br />' + (feature.properties['Condition'] !== null ? autolinker.link(String(feature.properties['Condition']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Construction_Year</strong><br />' + (feature.properties['Construction_Year'] !== null ? autolinker.link(String(feature.properties['Construction_Year']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Area</strong><br />' + (feature.properties['Area'] !== null ? autolinker.link(String(feature.properties['Area']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_Building_7_0() {
+            return {
+                pane: 'pane_Building_7',
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(213,180,60,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_Building_7');
+        map.getPane('pane_Building_7').style.zIndex = 407;
+        map.getPane('pane_Building_7').style['mix-blend-mode'] = 'normal';
+        var layer_Building_7 = new L.geoJson(json_Building_7, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_Building_7',
+            layerName: 'layer_Building_7',
+            pane: 'pane_Building_7',
+            onEachFeature: pop_Building_7,
+            style: style_Building_7_0,
+        });
+        bounds_group.addLayer(layer_Building_7);
+        map.addLayer(layer_Building_7);
+        function pop_Fence_Line_8(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2"><strong>OBJECTID</strong><br />' + (feature.properties['OBJECTID'] !== null ? autolinker.link(String(feature.properties['OBJECTID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Shape_Length</strong><br />' + (feature.properties['Shape_Length'] !== null ? autolinker.link(String(feature.properties['Shape_Length']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Fence_ID</strong><br />' + (feature.properties['Fence_ID'] !== null ? autolinker.link(String(feature.properties['Fence_ID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Material</strong><br />' + (feature.properties['Material'] !== null ? autolinker.link(String(feature.properties['Material']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Height</strong><br />' + (feature.properties['Height'] !== null ? autolinker.link(String(feature.properties['Height']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Condition</strong><br />' + (feature.properties['Condition'] !== null ? autolinker.link(String(feature.properties['Condition']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_Fence_Line_8_0() {
+            return {
+                pane: 'pane_Fence_Line_8',
+                opacity: 1,
+                color: 'rgba(232,113,141,1.0)',
+                dashArray: '',
+                lineCap: 'square',
+                lineJoin: 'bevel',
+                weight: 1.0,
+                fillOpacity: 0,
+                interactive: true,
+            }
+        }
+        map.createPane('pane_Fence_Line_8');
+        map.getPane('pane_Fence_Line_8').style.zIndex = 408;
+        map.getPane('pane_Fence_Line_8').style['mix-blend-mode'] = 'normal';
+        var layer_Fence_Line_8 = new L.geoJson(json_Fence_Line_8, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_Fence_Line_8',
+            layerName: 'layer_Fence_Line_8',
+            pane: 'pane_Fence_Line_8',
+            onEachFeature: pop_Fence_Line_8,
+            style: style_Fence_Line_8_0,
+        });
+        bounds_group.addLayer(layer_Fence_Line_8);
+        map.addLayer(layer_Fence_Line_8);
+        function pop_Field_Block_9(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2"><strong>OBJECTID</strong><br />' + (feature.properties['OBJECTID'] !== null ? autolinker.link(String(feature.properties['OBJECTID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Shape_Length</strong><br />' + (feature.properties['Shape_Length'] !== null ? autolinker.link(String(feature.properties['Shape_Length']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Block_ID</strong><br />' + (feature.properties['Block_ID'] !== null ? autolinker.link(String(feature.properties['Block_ID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Crop_Type</strong><br />' + (feature.properties['Crop_Type'] !== null ? autolinker.link(String(feature.properties['Crop_Type']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Area</strong><br />' + (feature.properties['Area'] !== null ? autolinker.link(String(feature.properties['Area']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Season</strong><br />' + (feature.properties['Season'] !== null ? autolinker.link(String(feature.properties['Season']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Soil_Type</strong><br />' + (feature.properties['Soil_Type'] !== null ? autolinker.link(String(feature.properties['Soil_Type']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Irrigation_Source</strong><br />' + (feature.properties['Irrigation_Source'] !== null ? autolinker.link(String(feature.properties['Irrigation_Source']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Sowing_Date</strong><br />' + (feature.properties['Sowing_Date'] !== null ? autolinker.link(String(feature.properties['Sowing_Date']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Harvest_Date</strong><br />' + (feature.properties['Harvest_Date'] !== null ? autolinker.link(String(feature.properties['Harvest_Date']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_Field_Block_9_0() {
+            return {
+                pane: 'pane_Field_Block_9',
+                opacity: 1,
+                color: 'rgba(196,60,57,1.0)',
+                dashArray: '',
+                lineCap: 'square',
+                lineJoin: 'bevel',
+                weight: 1.0,
+                fillOpacity: 0,
+                interactive: true,
+            }
+        }
+        map.createPane('pane_Field_Block_9');
+        map.getPane('pane_Field_Block_9').style.zIndex = 409;
+        map.getPane('pane_Field_Block_9').style['mix-blend-mode'] = 'normal';
+        var layer_Field_Block_9 = new L.geoJson(json_Field_Block_9, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_Field_Block_9',
+            layerName: 'layer_Field_Block_9',
+            pane: 'pane_Field_Block_9',
+            onEachFeature: pop_Field_Block_9,
+            style: style_Field_Block_9_0,
+        });
+        bounds_group.addLayer(layer_Field_Block_9);
+        map.addLayer(layer_Field_Block_9);
+        function pop_Farm_Boundary_10(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2"><strong>OBJECTID</strong><br />' + (feature.properties['OBJECTID'] !== null ? autolinker.link(String(feature.properties['OBJECTID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Shape_Length</strong><br />' + (feature.properties['Shape_Length'] !== null ? autolinker.link(String(feature.properties['Shape_Length']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Farm_ID</strong><br />' + (feature.properties['Farm_ID'] !== null ? autolinker.link(String(feature.properties['Farm_ID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Farm_Name</strong><br />' + (feature.properties['Farm_Name'] !== null ? autolinker.link(String(feature.properties['Farm_Name']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Owner</strong><br />' + (feature.properties['Owner'] !== null ? autolinker.link(String(feature.properties['Owner']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Total_Area</strong><br />' + (feature.properties['Total_Area'] !== null ? autolinker.link(String(feature.properties['Total_Area']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Location</strong><br />' + (feature.properties['Location'] !== null ? autolinker.link(String(feature.properties['Location']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Establishment_Year</strong><br />' + (feature.properties['Establishment_Year'] !== null ? autolinker.link(String(feature.properties['Establishment_Year']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_Farm_Boundary_10_0() {
+            return {
+                pane: 'pane_Farm_Boundary_10',
+                opacity: 1,
+                color: 'rgba(225,89,137,1.0)',
+                dashArray: '',
+                lineCap: 'square',
+                lineJoin: 'bevel',
+                weight: 1.0,
+                fillOpacity: 0,
+                interactive: true,
+            }
+        }
+        map.createPane('pane_Farm_Boundary_10');
+        map.getPane('pane_Farm_Boundary_10').style.zIndex = 410;
+        map.getPane('pane_Farm_Boundary_10').style['mix-blend-mode'] = 'normal';
+        var layer_Farm_Boundary_10 = new L.geoJson(json_Farm_Boundary_10, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_Farm_Boundary_10',
+            layerName: 'layer_Farm_Boundary_10',
+            pane: 'pane_Farm_Boundary_10',
+            onEachFeature: pop_Farm_Boundary_10,
+            style: style_Farm_Boundary_10_0,
+        });
+        bounds_group.addLayer(layer_Farm_Boundary_10);
+        map.addLayer(layer_Farm_Boundary_10);
+        function pop_Water_Tank_11(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2"><strong>OBJECTID</strong><br />' + (feature.properties['OBJECTID'] !== null ? autolinker.link(String(feature.properties['OBJECTID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Tank_ID</strong><br />' + (feature.properties['Tank_ID'] !== null ? autolinker.link(String(feature.properties['Tank_ID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Capacity</strong><br />' + (feature.properties['Capacity'] !== null ? autolinker.link(String(feature.properties['Capacity']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Material</strong><br />' + (feature.properties['Material'] !== null ? autolinker.link(String(feature.properties['Material']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Usage_Type</strong><br />' + (feature.properties['Usage_Type'] !== null ? autolinker.link(String(feature.properties['Usage_Type']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_Water_Tank_11_0() {
+            return {
+                pane: 'pane_Water_Tank_11',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(183,72,75,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_Water_Tank_11');
+        map.getPane('pane_Water_Tank_11').style.zIndex = 411;
+        map.getPane('pane_Water_Tank_11').style['mix-blend-mode'] = 'normal';
+        var layer_Water_Tank_11 = new L.geoJson(json_Water_Tank_11, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_Water_Tank_11',
+            layerName: 'layer_Water_Tank_11',
+            pane: 'pane_Water_Tank_11',
+            onEachFeature: pop_Water_Tank_11,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_Water_Tank_11_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_Water_Tank_11);
+        map.addLayer(layer_Water_Tank_11);
+        function pop_Poultry_Shed_12(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2"><strong>OBJECTID</strong><br />' + (feature.properties['OBJECTID'] !== null ? autolinker.link(String(feature.properties['OBJECTID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Shape_Length</strong><br />' + (feature.properties['Shape_Length'] !== null ? autolinker.link(String(feature.properties['Shape_Length']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Shape_Area</strong><br />' + (feature.properties['Shape_Area'] !== null ? autolinker.link(String(feature.properties['Shape_Area']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Shed_ID</strong><br />' + (feature.properties['Shed_ID'] !== null ? autolinker.link(String(feature.properties['Shed_ID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Bird_Type</strong><br />' + (feature.properties['Bird_Type'] !== null ? autolinker.link(String(feature.properties['Bird_Type']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Capacity</strong><br />' + (feature.properties['Capacity'] !== null ? autolinker.link(String(feature.properties['Capacity']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Feed_Type</strong><br />' + (feature.properties['Feed_Type'] !== null ? autolinker.link(String(feature.properties['Feed_Type']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Temperature_Control</strong><br />' + (feature.properties['Temperature_Control'] !== null ? autolinker.link(String(feature.properties['Temperature_Control']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Ventilation_Status</strong><br />' + (feature.properties['Ventilation_Status'] !== null ? autolinker.link(String(feature.properties['Ventilation_Status']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Area</strong><br />' + (feature.properties['Area'] !== null ? autolinker.link(String(feature.properties['Area']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>z</strong><br />' + (feature.properties['z'] !== null ? autolinker.link(String(feature.properties['z']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_Poultry_Shed_12_0() {
+            return {
+                pane: 'pane_Poultry_Shed_12',
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(145,82,45,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_Poultry_Shed_12');
+        map.getPane('pane_Poultry_Shed_12').style.zIndex = 412;
+        map.getPane('pane_Poultry_Shed_12').style['mix-blend-mode'] = 'normal';
+        var layer_Poultry_Shed_12 = new L.geoJson(json_Poultry_Shed_12, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_Poultry_Shed_12',
+            layerName: 'layer_Poultry_Shed_12',
+            pane: 'pane_Poultry_Shed_12',
+            onEachFeature: pop_Poultry_Shed_12,
+            style: style_Poultry_Shed_12_0,
+        });
+        bounds_group.addLayer(layer_Poultry_Shed_12);
+        map.addLayer(layer_Poultry_Shed_12);
+        function pop_Cattle_Shed_13(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2"><strong>OBJECTID</strong><br />' + (feature.properties['OBJECTID'] !== null ? autolinker.link(String(feature.properties['OBJECTID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Shape_Length</strong><br />' + (feature.properties['Shape_Length'] !== null ? autolinker.link(String(feature.properties['Shape_Length']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Shape_Area</strong><br />' + (feature.properties['Shape_Area'] !== null ? autolinker.link(String(feature.properties['Shape_Area']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Shed_ID</strong><br />' + (feature.properties['Shed_ID'] !== null ? autolinker.link(String(feature.properties['Shed_ID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Animal_Type</strong><br />' + (feature.properties['Animal_Type'] !== null ? autolinker.link(String(feature.properties['Animal_Type']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Capacity</strong><br />' + (feature.properties['Capacity'] !== null ? autolinker.link(String(feature.properties['Capacity']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Flooring_Type</strong><br />' + (feature.properties['Flooring_Type'] !== null ? autolinker.link(String(feature.properties['Flooring_Type']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Ventilation_Type</strong><br />' + (feature.properties['Ventilation_Type'] !== null ? autolinker.link(String(feature.properties['Ventilation_Type']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Condition</strong><br />' + (feature.properties['Condition'] !== null ? autolinker.link(String(feature.properties['Condition']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Water_Source_ID</strong><br />' + (feature.properties['Water_Source_ID'] !== null ? autolinker.link(String(feature.properties['Water_Source_ID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Area</strong><br />' + (feature.properties['Area'] !== null ? autolinker.link(String(feature.properties['Area']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_Cattle_Shed_13_0() {
+            return {
+                pane: 'pane_Cattle_Shed_13',
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(178,223,138,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_Cattle_Shed_13');
+        map.getPane('pane_Cattle_Shed_13').style.zIndex = 413;
+        map.getPane('pane_Cattle_Shed_13').style['mix-blend-mode'] = 'normal';
+        var layer_Cattle_Shed_13 = new L.geoJson(json_Cattle_Shed_13, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_Cattle_Shed_13',
+            layerName: 'layer_Cattle_Shed_13',
+            pane: 'pane_Cattle_Shed_13',
+            onEachFeature: pop_Cattle_Shed_13,
+            style: style_Cattle_Shed_13_0,
+        });
+        bounds_group.addLayer(layer_Cattle_Shed_13);
+        map.addLayer(layer_Cattle_Shed_13);
+        function pop_Animal_Point_14(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2"><strong>OBJECTID</strong><br />' + (feature.properties['OBJECTID'] !== null ? autolinker.link(String(feature.properties['OBJECTID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Animal_ID</strong><br />' + (feature.properties['Animal_ID'] !== null ? autolinker.link(String(feature.properties['Animal_ID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Animal_Type</strong><br />' + (feature.properties['Animal_Type'] !== null ? autolinker.link(String(feature.properties['Animal_Type']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Breed</strong><br />' + (feature.properties['Breed'] !== null ? autolinker.link(String(feature.properties['Breed']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Age</strong><br />' + (feature.properties['Age'] !== null ? autolinker.link(String(feature.properties['Age']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Sex</strong><br />' + (feature.properties['Sex'] !== null ? autolinker.link(String(feature.properties['Sex']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Health_Status</strong><br />' + (feature.properties['Health_Status'] !== null ? autolinker.link(String(feature.properties['Health_Status']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Vaccination_Date</strong><br />' + (feature.properties['Vaccination_Date'] !== null ? autolinker.link(String(feature.properties['Vaccination_Date']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Shed_ID</strong><br />' + (feature.properties['Shed_ID'] !== null ? autolinker.link(String(feature.properties['Shed_ID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_Animal_Point_14_0() {
+            return {
+                pane: 'pane_Animal_Point_14',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(213,180,60,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_Animal_Point_14');
+        map.getPane('pane_Animal_Point_14').style.zIndex = 414;
+        map.getPane('pane_Animal_Point_14').style['mix-blend-mode'] = 'normal';
+        var layer_Animal_Point_14 = new L.geoJson(json_Animal_Point_14, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_Animal_Point_14',
+            layerName: 'layer_Animal_Point_14',
+            pane: 'pane_Animal_Point_14',
+            onEachFeature: pop_Animal_Point_14,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_Animal_Point_14_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_Animal_Point_14);
+        map.addLayer(layer_Animal_Point_14);
+        function pop_Crop_Zone_15(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2"><strong>OBJECTID</strong><br />' + (feature.properties['OBJECTID'] !== null ? autolinker.link(String(feature.properties['OBJECTID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Shape_Length</strong><br />' + (feature.properties['Shape_Length'] !== null ? autolinker.link(String(feature.properties['Shape_Length']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Shape_Area</strong><br />' + (feature.properties['Shape_Area'] !== null ? autolinker.link(String(feature.properties['Shape_Area']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Crop_ID</strong><br />' + (feature.properties['Crop_ID'] !== null ? autolinker.link(String(feature.properties['Crop_ID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Crop_Name</strong><br />' + (feature.properties['Crop_Name'] !== null ? autolinker.link(String(feature.properties['Crop_Name']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Crop_Variety</strong><br />' + (feature.properties['Crop_Variety'] !== null ? autolinker.link(String(feature.properties['Crop_Variety']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Season</strong><br />' + (feature.properties['Season'] !== null ? autolinker.link(String(feature.properties['Season']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Fertilizer_Type</strong><br />' + (feature.properties['Fertilizer_Type'] !== null ? autolinker.link(String(feature.properties['Fertilizer_Type']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Irrigation_Method</strong><br />' + (feature.properties['Irrigation_Method'] !== null ? autolinker.link(String(feature.properties['Irrigation_Method']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Avg_Yield</strong><br />' + (feature.properties['Avg_Yield'] !== null ? autolinker.link(String(feature.properties['Avg_Yield']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_Crop_Zone_15_0() {
+            return {
+                pane: 'pane_Crop_Zone_15',
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(232,113,141,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_Crop_Zone_15');
+        map.getPane('pane_Crop_Zone_15').style.zIndex = 415;
+        map.getPane('pane_Crop_Zone_15').style['mix-blend-mode'] = 'normal';
+        var layer_Crop_Zone_15 = new L.geoJson(json_Crop_Zone_15, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_Crop_Zone_15',
+            layerName: 'layer_Crop_Zone_15',
+            pane: 'pane_Crop_Zone_15',
+            onEachFeature: pop_Crop_Zone_15,
+            style: style_Crop_Zone_15_0,
+        });
+        bounds_group.addLayer(layer_Crop_Zone_15);
+        map.addLayer(layer_Crop_Zone_15);
+        function pop_Irrigation_Point_16(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2"><strong>OBJECTID</strong><br />' + (feature.properties['OBJECTID'] !== null ? autolinker.link(String(feature.properties['OBJECTID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Source_ID</strong><br />' + (feature.properties['Source_ID'] !== null ? autolinker.link(String(feature.properties['Source_ID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Type</strong><br />' + (feature.properties['Type'] !== null ? autolinker.link(String(feature.properties['Type']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Depth</strong><br />' + (feature.properties['Depth'] !== null ? autolinker.link(String(feature.properties['Depth']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Capacity</strong><br />' + (feature.properties['Capacity'] !== null ? autolinker.link(String(feature.properties['Capacity']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Status</strong><br />' + (feature.properties['Status'] !== null ? autolinker.link(String(feature.properties['Status']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_Irrigation_Point_16_0() {
+            return {
+                pane: 'pane_Irrigation_Point_16',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(152,125,183,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_Irrigation_Point_16');
+        map.getPane('pane_Irrigation_Point_16').style.zIndex = 416;
+        map.getPane('pane_Irrigation_Point_16').style['mix-blend-mode'] = 'normal';
+        var layer_Irrigation_Point_16 = new L.geoJson(json_Irrigation_Point_16, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_Irrigation_Point_16',
+            layerName: 'layer_Irrigation_Point_16',
+            pane: 'pane_Irrigation_Point_16',
+            onEachFeature: pop_Irrigation_Point_16,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_Irrigation_Point_16_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_Irrigation_Point_16);
+        map.addLayer(layer_Irrigation_Point_16);
+        function pop_Soil_Sample_Point_17(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2"><strong>OBJECTID</strong><br />' + (feature.properties['OBJECTID'] !== null ? autolinker.link(String(feature.properties['OBJECTID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Sample_ID</strong><br />' + (feature.properties['Sample_ID'] !== null ? autolinker.link(String(feature.properties['Sample_ID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>pH</strong><br />' + (feature.properties['pH'] !== null ? autolinker.link(String(feature.properties['pH']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Organic_Matter</strong><br />' + (feature.properties['Organic_Matter'] !== null ? autolinker.link(String(feature.properties['Organic_Matter']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>N</strong><br />' + (feature.properties['N'] !== null ? autolinker.link(String(feature.properties['N']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>P</strong><br />' + (feature.properties['P'] !== null ? autolinker.link(String(feature.properties['P']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>K</strong><br />' + (feature.properties['K'] !== null ? autolinker.link(String(feature.properties['K']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Sample_Date</strong><br />' + (feature.properties['Sample_Date'] !== null ? autolinker.link(String(feature.properties['Sample_Date']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>ORIG_FID</strong><br />' + (feature.properties['ORIG_FID'] !== null ? autolinker.link(String(feature.properties['ORIG_FID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_Soil_Sample_Point_17_0() {
+            return {
+                pane: 'pane_Soil_Sample_Point_17',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(183,72,75,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_Soil_Sample_Point_17');
+        map.getPane('pane_Soil_Sample_Point_17').style.zIndex = 417;
+        map.getPane('pane_Soil_Sample_Point_17').style['mix-blend-mode'] = 'normal';
+        var layer_Soil_Sample_Point_17 = new L.geoJson(json_Soil_Sample_Point_17, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_Soil_Sample_Point_17',
+            layerName: 'layer_Soil_Sample_Point_17',
+            pane: 'pane_Soil_Sample_Point_17',
+            onEachFeature: pop_Soil_Sample_Point_17,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_Soil_Sample_Point_17_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_Soil_Sample_Point_17);
+        map.addLayer(layer_Soil_Sample_Point_17);
+        function pop_Fish_Pond_18(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2"><strong>OBJECTID</strong><br />' + (feature.properties['OBJECTID'] !== null ? autolinker.link(String(feature.properties['OBJECTID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Shape_Length</strong><br />' + (feature.properties['Shape_Length'] !== null ? autolinker.link(String(feature.properties['Shape_Length']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Shape_Area</strong><br />' + (feature.properties['Shape_Area'] !== null ? autolinker.link(String(feature.properties['Shape_Area']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Pond_ID</strong><br />' + (feature.properties['Pond_ID'] !== null ? autolinker.link(String(feature.properties['Pond_ID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Use_Type</strong><br />' + (feature.properties['Use_Type'] !== null ? autolinker.link(String(feature.properties['Use_Type']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Area</strong><br />' + (feature.properties['Area'] !== null ? autolinker.link(String(feature.properties['Area']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Depth</strong><br />' + (feature.properties['Depth'] !== null ? autolinker.link(String(feature.properties['Depth']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Water_Source</strong><br />' + (feature.properties['Water_Source'] !== null ? autolinker.link(String(feature.properties['Water_Source']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Fish_Species</strong><br />' + (feature.properties['Fish_Species'] !== null ? autolinker.link(String(feature.properties['Fish_Species']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Stocking_Date</strong><br />' + (feature.properties['Stocking_Date'] !== null ? autolinker.link(String(feature.properties['Stocking_Date']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Harvest_Date</strong><br />' + (feature.properties['Harvest_Date'] !== null ? autolinker.link(String(feature.properties['Harvest_Date']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_Fish_Pond_18_0() {
+            return {
+                pane: 'pane_Fish_Pond_18',
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(43,131,186,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_Fish_Pond_18');
+        map.getPane('pane_Fish_Pond_18').style.zIndex = 418;
+        map.getPane('pane_Fish_Pond_18').style['mix-blend-mode'] = 'normal';
+        var layer_Fish_Pond_18 = new L.geoJson(json_Fish_Pond_18, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_Fish_Pond_18',
+            layerName: 'layer_Fish_Pond_18',
+            pane: 'pane_Fish_Pond_18',
+            onEachFeature: pop_Fish_Pond_18,
+            style: style_Fish_Pond_18_0,
+        });
+        bounds_group.addLayer(layer_Fish_Pond_18);
+        map.addLayer(layer_Fish_Pond_18);
+        function pop_Water_Sample_Point_19(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2"><strong>OBJECTID</strong><br />' + (feature.properties['OBJECTID'] !== null ? autolinker.link(String(feature.properties['OBJECTID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Sample_ID</strong><br />' + (feature.properties['Sample_ID'] !== null ? autolinker.link(String(feature.properties['Sample_ID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>pH</strong><br />' + (feature.properties['pH'] !== null ? autolinker.link(String(feature.properties['pH']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>DO</strong><br />' + (feature.properties['DO'] !== null ? autolinker.link(String(feature.properties['DO']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Temperature</strong><br />' + (feature.properties['Temperature'] !== null ? autolinker.link(String(feature.properties['Temperature']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Ammonia</strong><br />' + (feature.properties['Ammonia'] !== null ? autolinker.link(String(feature.properties['Ammonia']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Date</strong><br />' + (feature.properties['Date'] !== null ? autolinker.link(String(feature.properties['Date']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_Water_Sample_Point_19_0() {
+            return {
+                pane: 'pane_Water_Sample_Point_19',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(243,166,178,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_Water_Sample_Point_19');
+        map.getPane('pane_Water_Sample_Point_19').style.zIndex = 419;
+        map.getPane('pane_Water_Sample_Point_19').style['mix-blend-mode'] = 'normal';
+        var layer_Water_Sample_Point_19 = new L.geoJson(json_Water_Sample_Point_19, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_Water_Sample_Point_19',
+            layerName: 'layer_Water_Sample_Point_19',
+            pane: 'pane_Water_Sample_Point_19',
+            onEachFeature: pop_Water_Sample_Point_19,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_Water_Sample_Point_19_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_Water_Sample_Point_19);
+        map.addLayer(layer_Water_Sample_Point_19);
+        function pop_Waste_Disposal_Point_20(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2"><strong>OBJECTID</strong><br />' + (feature.properties['OBJECTID'] !== null ? autolinker.link(String(feature.properties['OBJECTID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Waste_ID</strong><br />' + (feature.properties['Waste_ID'] !== null ? autolinker.link(String(feature.properties['Waste_ID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Field</strong><br />' + (feature.properties['Field'] !== null ? autolinker.link(String(feature.properties['Field']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Type</strong><br />' + (feature.properties['Type'] !== null ? autolinker.link(String(feature.properties['Type']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Treatment_Method</strong><br />' + (feature.properties['Treatment_Method'] !== null ? autolinker.link(String(feature.properties['Treatment_Method']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_Waste_Disposal_Point_20_0() {
+            return {
+                pane: 'pane_Waste_Disposal_Point_20',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(152,125,183,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_Waste_Disposal_Point_20');
+        map.getPane('pane_Waste_Disposal_Point_20').style.zIndex = 420;
+        map.getPane('pane_Waste_Disposal_Point_20').style['mix-blend-mode'] = 'normal';
+        var layer_Waste_Disposal_Point_20 = new L.geoJson(json_Waste_Disposal_Point_20, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_Waste_Disposal_Point_20',
+            layerName: 'layer_Waste_Disposal_Point_20',
+            pane: 'pane_Waste_Disposal_Point_20',
+            onEachFeature: pop_Waste_Disposal_Point_20,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_Waste_Disposal_Point_20_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_Waste_Disposal_Point_20);
+        map.addLayer(layer_Waste_Disposal_Point_20);
+        function pop_Biogas_Plant_21(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2"><strong>OBJECTID</strong><br />' + (feature.properties['OBJECTID'] !== null ? autolinker.link(String(feature.properties['OBJECTID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Plant_ID</strong><br />' + (feature.properties['Plant_ID'] !== null ? autolinker.link(String(feature.properties['Plant_ID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Capacity</strong><br />' + (feature.properties['Capacity'] !== null ? autolinker.link(String(feature.properties['Capacity']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Input_Type</strong><br />' + (feature.properties['Input_Type'] !== null ? autolinker.link(String(feature.properties['Input_Type']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Output_Type</strong><br />' + (feature.properties['Output_Type'] !== null ? autolinker.link(String(feature.properties['Output_Type']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Status</strong><br />' + (feature.properties['Status'] !== null ? autolinker.link(String(feature.properties['Status']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_Biogas_Plant_21_0() {
+            return {
+                pane: 'pane_Biogas_Plant_21',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(183,72,75,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_Biogas_Plant_21');
+        map.getPane('pane_Biogas_Plant_21').style.zIndex = 421;
+        map.getPane('pane_Biogas_Plant_21').style['mix-blend-mode'] = 'normal';
+        var layer_Biogas_Plant_21 = new L.geoJson(json_Biogas_Plant_21, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_Biogas_Plant_21',
+            layerName: 'layer_Biogas_Plant_21',
+            pane: 'pane_Biogas_Plant_21',
+            onEachFeature: pop_Biogas_Plant_21,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_Biogas_Plant_21_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_Biogas_Plant_21);
+        map.addLayer(layer_Biogas_Plant_21);
+        function pop_Veterinary_Point_22(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2"><strong>OBJECTID</strong><br />' + (feature.properties['OBJECTID'] !== null ? autolinker.link(String(feature.properties['OBJECTID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Vet_ID</strong><br />' + (feature.properties['Vet_ID'] !== null ? autolinker.link(String(feature.properties['Vet_ID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Doctor_Name</strong><br />' + (feature.properties['Doctor_Name'] !== null ? autolinker.link(String(feature.properties['Doctor_Name']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Facility_Type</strong><br />' + (feature.properties['Facility_Type'] !== null ? autolinker.link(String(feature.properties['Facility_Type']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Contact</strong><br />' + (feature.properties['Contact'] !== null ? autolinker.link(String(feature.properties['Contact']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2"><strong>Availability</strong><br />' + (feature.properties['Availability'] !== null ? autolinker.link(String(feature.properties['Availability']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_Veterinary_Point_22_0() {
+            return {
+                pane: 'pane_Veterinary_Point_22',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(243,166,178,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_Veterinary_Point_22');
+        map.getPane('pane_Veterinary_Point_22').style.zIndex = 422;
+        map.getPane('pane_Veterinary_Point_22').style['mix-blend-mode'] = 'normal';
+        var layer_Veterinary_Point_22 = new L.geoJson(json_Veterinary_Point_22, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_Veterinary_Point_22',
+            layerName: 'layer_Veterinary_Point_22',
+            pane: 'pane_Veterinary_Point_22',
+            onEachFeature: pop_Veterinary_Point_22,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_Veterinary_Point_22_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_Veterinary_Point_22);
+        map.addLayer(layer_Veterinary_Point_22);
+        const url = {"Nominatim OSM": "https://nominatim.openstreetmap.org/search?format=geojson&addressdetails=1&",
+        "France BAN": "https://api-adresse.data.gouv.fr/search/?"}
+        var photonControl = L.control.photon({
+            url: url["Nominatim OSM"],
+            feedbackLabel: '',
+            position: 'topleft',
+            includePosition: true,
+            initial: true,
+            // resultsHandler: myHandler,
+        }).addTo(map);
+        photonControl._container.childNodes[0].style.borderRadius="10px"
+        // Create a variable to store the geoJSON data
+        var x = null;
+        // Create a variable to store the marker
+        var marker = null;
+        // Add an event listener to the Photon control to create a marker from the returned geoJSON data
+        var z = null;
+        photonControl.on('selected', function(e) {
+            console.log(photonControl.search.resultsContainer);
+            if (x != null) {
+                map.removeLayer(obj3.marker);
+                map.removeLayer(x);
+            }
+            obj2.gcd = e.choice;
+            x = L.geoJSON(obj2.gcd).addTo(map);
+            var label = typeof obj2.gcd.properties.label === 'undefined' ? obj2.gcd.properties.display_name : obj2.gcd.properties.label;
+            obj3.marker = L.marker(x.getLayers()[0].getLatLng()).bindPopup(label).addTo(map);
+            map.setView(x.getLayers()[0].getLatLng(), 17);
+            z = typeof e.choice.properties.label === 'undefined'? e.choice.properties.display_name : e.choice.properties.label;
+            console.log(e);
+            e.target.input.value = z;
+        });
+        var search = document.getElementsByClassName("leaflet-photon leaflet-control")[0];
+        search.classList.add("leaflet-control-search")
+        search.style.display = "flex";
+        search.style.backgroundColor="rgba(255,255,255,0.5)" 
+
+        // Create the new button element
+        var button = document.createElement("div");
+        button.id = "gcd-button-control";
+        button.className = "gcd-gl-btn fa fa-search search-button";
+
+        // Insert the button at the beginning of the search control
+        search.insertBefore(button, search.firstChild);
+        last = search.lastChild;
+        last.style.display = "none";
+        button.addEventListener("click", function (e) {
+            if (last.style.display === "none") {
+                last.style.display = "block";
+            } else {
+                last.style.display = "none";
+            }
+        });
+        var overlaysTree = [
+            {label: '<img src="legend/Veterinary_Point_22.png" /> Veterinary_Point', layer: layer_Veterinary_Point_22},
+            {label: '<img src="legend/Biogas_Plant_21.png" /> Biogas_Plant', layer: layer_Biogas_Plant_21},
+            {label: '<img src="legend/Waste_Disposal_Point_20.png" /> Waste_Disposal_Point', layer: layer_Waste_Disposal_Point_20},
+            {label: '<img src="legend/Water_Sample_Point_19.png" /> Water_Sample_Point', layer: layer_Water_Sample_Point_19},
+            {label: '<img src="legend/Fish_Pond_18.png" /> Fish_Pond', layer: layer_Fish_Pond_18},
+            {label: '<img src="legend/Soil_Sample_Point_17.png" /> Soil_Sample_Point', layer: layer_Soil_Sample_Point_17},
+            {label: '<img src="legend/Irrigation_Point_16.png" /> Irrigation_Point', layer: layer_Irrigation_Point_16},
+            {label: '<img src="legend/Crop_Zone_15.png" /> Crop_Zone', layer: layer_Crop_Zone_15},
+            {label: '<img src="legend/Animal_Point_14.png" /> Animal_Point', layer: layer_Animal_Point_14},
+            {label: '<img src="legend/Cattle_Shed_13.png" /> Cattle_Shed', layer: layer_Cattle_Shed_13},
+            {label: '<img src="legend/Poultry_Shed_12.png" /> Poultry_Shed', layer: layer_Poultry_Shed_12},
+            {label: '<img src="legend/Water_Tank_11.png" /> Water_Tank', layer: layer_Water_Tank_11},
+            {label: '<img src="legend/Farm_Boundary_10.png" /> Farm_Boundary', layer: layer_Farm_Boundary_10},
+            {label: '<img src="legend/Field_Block_9.png" /> Field_Block', layer: layer_Field_Block_9},
+            {label: '<img src="legend/Fence_Line_8.png" /> Fence_Line', layer: layer_Fence_Line_8},
+            {label: '<img src="legend/Building_7.png" /> Building', layer: layer_Building_7},
+            {label: '<img src="legend/Farm_Road_6.png" /> Farm_Road', layer: layer_Farm_Road_6},
+            {label: '<img src="legend/Main_Road_5.png" /> Main_Road', layer: layer_Main_Road_5},
+            {label: '<img src="legend/Grazing_Area_4.png" /> Grazing_Area', layer: layer_Grazing_Area_4},
+            {label: '<img src="legend/Feed_Storage_Point_3.png" /> Feed_Storage_Point', layer: layer_Feed_Storage_Point_3},
+            {label: '<img src="legend/Field_Block_Polygon_2.png" /> Field_Block_Polygon', layer: layer_Field_Block_Polygon_2},
+            {label: '<img src="legend/Farm_Total_Area_1.png" /> Farm_Total_Area', layer: layer_Farm_Total_Area_1},
+            {label: "Google Satellite", layer: layer_GoogleSatellite_0},]
+        var lay = L.control.layers.tree(null, overlaysTree,{
+            //namedToggle: true,
+            //selectorBack: false,
+            //closedSymbol: '&#8862; &#x1f5c0;',
+            //openedSymbol: '&#8863; &#x1f5c1;',
+            //collapseAll: 'Collapse all',
+            //expandAll: 'Expand all',
+            collapsed: true,
+        });
+        lay.addTo(map);
+        setBounds();
+        </script>        
+    </body>
+</html>
